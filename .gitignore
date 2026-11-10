@@ -1,0 +1,20 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor & IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary & backup files
+*.bak
+*.tmp
+temp_*
+
+# Node & package manager (if any used in future)
+node_modules/
+package-lock.json
+
