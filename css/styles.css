@@ -336,6 +336,7 @@ input[type="text"],
 input[type="search"],
 input[type="tel"],
 input[type="email"],
+input[type="password"],
 input[type="file"],
 select,
 textarea {
@@ -1095,3 +1096,118 @@ table.data-table tbody tr:last-child td {
   }
 }
 
+
+/* ---- Autenticación ---- */
+#app[hidden],
+.auth-screen[hidden],
+.auth-form[hidden] {
+  display: none !important;
+}
+
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--bg);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 26px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form h2 {
+  font-size: 1.25rem;
+}
+
+.auth-field label {
+  margin-bottom: 4px;
+}
+
+.auth-loading {
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.auth-msg {
+  font-size: .82rem;
+  min-height: 1.2em;
+  color: var(--bad);
+}
+
+.auth-msg.ok {
+  color: var(--ok);
+}
+
+.auth-submit {
+  width: 100%;
+  justify-content: center;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.auth-link {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  color: var(--accent);
+  font-size: .82rem;
+  cursor: pointer;
+  align-self: center;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.user-chip {
+  font-size: .78rem;
+  color: var(--ink-muted);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-chip .role {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--accent);
+  margin-left: 4px;
+}
+
+/* Rol de solo lectura: se ocultan las acciones de edición.
+   (La protección real la aplican las políticas RLS en Supabase.) */
+body.role-lector [data-requires="editor"] {
+  display: none !important;
+}
+
+@media (max-width: 880px) {
+  .user-chip {
+    display: none;
+  }
+}
+
+.auth-card .brand {
+  padding: 0;
+}

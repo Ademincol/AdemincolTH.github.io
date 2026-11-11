@@ -66,6 +66,9 @@
   }
 
   var DB = {
+    // Cliente compartido (lo usa también js/auth.js para la sesión).
+    client: getClient,
+
     open: function () {
       try {
         var client = getClient();

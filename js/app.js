@@ -53,6 +53,7 @@
           var btn = document.createElement('button');
           btn.className = 'btn ' + (b.cls || '');
           btn.textContent = b.label;
+          if (b.requires) btn.dataset.requires = b.requires;
           btn.addEventListener('click', b.onClick);
           footEl.appendChild(btn);
         });
@@ -236,8 +237,8 @@
           '<td>' + Utils.escapeHtml(Utils.nz(r.tipo_contrato)) + '</td>' +
           '<td class="cell-actions">' +
           '<button class="btn btn-sm btn-ghost" data-act="view" title="Ver perfil">Ver</button>' +
-          '<button class="btn btn-sm btn-ghost" data-act="edit" title="Editar empleado">Editar</button>' +
-          '<button class="btn btn-sm btn-ghost" data-act="del" title="Eliminar empleado">Eliminar</button>' +
+          '<button class="btn btn-sm btn-ghost" data-act="edit" data-requires="editor" title="Editar empleado">Editar</button>' +
+          '<button class="btn btn-sm btn-ghost" data-act="del" data-requires="editor" title="Eliminar empleado">Eliminar</button>' +
           '</td></tr>';
       }).join('');
     }
@@ -322,7 +323,7 @@
 
     Modal.open('Ficha de empleado', html, [
       { label: 'Cerrar', cls: 'btn-ghost', onClick: Modal.close },
-      { label: 'Editar', cls: 'btn-primary', onClick: function () { Modal.close(); UI.openEditForm(id); } }
+      { label: 'Editar', cls: 'btn-primary', requires: 'editor', onClick: function () { Modal.close(); UI.openEditForm(id); } }
     ]);
   };
 
@@ -526,7 +527,7 @@
       return '<div class="panel chart-card catalog-card" data-catalog="' + fk + '"><h3>' + f.label + '</h3>' +
         counts.map(function (c) {
           return '<div class="catalog-value-row"><span class="cnt">' + Utils.fmtInt(c.value) + '</span><span style="flex:1;">' + Utils.escapeHtml(c.label) + '</span>' +
-            '<button class="btn btn-sm btn-ghost" data-rename="' + Utils.escapeHtml(c.label) + '">Renombrar</button></div>';
+            '<button class="btn btn-sm btn-ghost" data-requires="editor" data-rename="' + Utils.escapeHtml(c.label) + '">Renombrar</button></div>';
         }).join('') + '</div>';
     }).join('');
 
@@ -962,21 +963,191 @@
     });
 
     /* ---- Arranque (Boot) ---- */
-    // Los datos viven solo en Supabase; ya no hay datos embebidos en el HTML.
-    // Si la tabla está vacía, se cargan desde "Importar Excel".
-    DB.open().then(function () {
-      return Promise.all([DB.getAllEmployees(), DB.getAllHistory()]);
-    }).then(function (res) {
+    AuthUI.bind();
+    Auth.onChange(AuthUI.handle);
+    Auth.init().catch(function (err) {
+      console.error(err);
+      AuthUI.showForm('login');
+      AuthUI.msg('auth-login-msg', 'No se pudo verificar la sesión: ' + (err && err.message ? err.message : err));
+    });
+
+  });
+
+  /* ================================================================
+     Autenticación: pantallas de acceso y carga de datos
+     ================================================================ */
+  var Auth = C.Auth;
+  var dataLoaded = false;
+
+  // Carga los datos desde Supabase (solo con sesión autorizada).
+  // Los datos viven solo en Supabase; si la tabla está vacía, se cargan desde "Importar Excel".
+  function loadData() {
+    if (dataLoaded) return Promise.resolve();
+    dataLoaded = true;
+    var foot = document.getElementById('sidebar-foot');
+    if (foot) foot.textContent = 'Cargando datos…';
+    return Promise.all([DB.getAllEmployees(), DB.getAllHistory()]).then(function (res) {
       Store.setHistory(res[1]);
       // setEmployees notifica al Store, que ya dibuja dashboard, filtros y tabla.
       Store.setEmployees(res[0]);
       UI.navigate('dashboard');
     }).catch(function (err) {
+      dataLoaded = false;
       console.error(err);
-      toast('Error inicializando la aplicación: ' + (err && err.message ? err.message : err), 'error');
+      toast('Error cargando los datos: ' + (err && err.message ? err.message : err), 'error');
     });
+  }
 
-  });
+  function clearData() {
+    dataLoaded = false;
+    Store.setEmployees([]);
+    Store.setHistory([]);
+    Modal.close();
+  }
+
+  var AuthUI = {
+    forms: {
+      login: 'auth-login-form',
+      reset: 'auth-reset-form',
+      setpass: 'auth-setpass-form',
+      denied: 'auth-denied'
+    },
+
+    showForm: function (name) {
+      var loading = document.getElementById('auth-loading');
+      if (loading) loading.hidden = true;
+      Object.keys(AuthUI.forms).forEach(function (k) {
+        var el = document.getElementById(AuthUI.forms[k]);
+        if (el) el.hidden = (k !== name);
+      });
+      var focusId = { login: 'auth-email', reset: 'auth-reset-email', setpass: 'auth-new-pass' }[name];
+      if (focusId) setTimeout(function () { var f = document.getElementById(focusId); if (f) f.focus(); }, 0);
+    },
+
+    showAuthScreen: function (formName) {
+      document.getElementById('app').hidden = true;
+      document.getElementById('auth-screen').hidden = false;
+      AuthUI.showForm(formName);
+    },
+
+    showApp: function (state) {
+      document.getElementById('auth-screen').hidden = true;
+      document.getElementById('app').hidden = false;
+      document.body.classList.toggle('role-lector', state.role !== 'editor');
+      document.body.classList.toggle('role-editor', state.role === 'editor');
+      var chip = document.getElementById('user-chip');
+      if (chip) {
+        var email = (state.user && state.user.email) || '';
+        chip.title = email;
+        chip.innerHTML = Utils.escapeHtml(email) + '<span class="role">' + (state.role === 'editor' ? 'Editor' : 'Lectura') + '</span>';
+      }
+      // Un lector que estaba en una vista de edición vuelve al dashboard.
+      if (state.role !== 'editor' && Store.get().view === 'importar') UI.navigate('dashboard');
+    },
+
+    msg: function (id, text, ok) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('ok', !!ok);
+    },
+
+    busy: function (form, isBusy, label) {
+      var btn = form.querySelector('.auth-submit');
+      if (!btn) return;
+      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+      btn.disabled = isBusy;
+      btn.textContent = isBusy ? label : btn.dataset.label;
+    },
+
+    // Reacciona a los cambios de sesión emitidos por js/auth.js
+    handle: function (event, state) {
+      if (event === 'SET_PASSWORD') {
+        AuthUI.showAuthScreen('setpass');
+        return;
+      }
+      if (!state.session) {
+        clearData();
+        AuthUI.showAuthScreen('login');
+        return;
+      }
+      if (!state.role) {
+        clearData();
+        var e = document.getElementById('auth-denied-email');
+        if (e) e.textContent = (state.user && state.user.email) || '';
+        AuthUI.showAuthScreen('denied');
+        return;
+      }
+      AuthUI.showApp(state);
+      loadData();
+    },
+
+    bind: function () {
+      var loginForm = document.getElementById('auth-login-form');
+      var resetForm = document.getElementById('auth-reset-form');
+      var setpassForm = document.getElementById('auth-setpass-form');
+
+      loginForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var email = document.getElementById('auth-email').value;
+        var pass = document.getElementById('auth-password').value;
+        if (!email || !pass) { AuthUI.msg('auth-login-msg', 'Escribe tu correo y tu contraseña.'); return; }
+        AuthUI.msg('auth-login-msg', '');
+        AuthUI.busy(loginForm, true, 'Entrando…');
+        Auth.signIn(email, pass).then(function () {
+          document.getElementById('auth-password').value = '';
+        }).catch(function (err) {
+          AuthUI.msg('auth-login-msg', err.message);
+        }).finally(function () {
+          AuthUI.busy(loginForm, false);
+        });
+      });
+
+      document.getElementById('auth-show-reset').addEventListener('click', function () {
+        document.getElementById('auth-reset-email').value = document.getElementById('auth-email').value;
+        AuthUI.msg('auth-reset-msg', '');
+        AuthUI.showForm('reset');
+      });
+      document.getElementById('auth-back-login').addEventListener('click', function () {
+        AuthUI.showForm('login');
+      });
+
+      resetForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var email = document.getElementById('auth-reset-email').value;
+        if (!email) { AuthUI.msg('auth-reset-msg', 'Escribe tu correo.'); return; }
+        AuthUI.busy(resetForm, true, 'Enviando…');
+        Auth.sendPasswordReset(email).then(function () {
+          // Mismo mensaje exista o no la cuenta, para no revelar qué correos están registrados.
+          AuthUI.msg('auth-reset-msg', 'Si el correo está registrado, recibirás un enlace en unos minutos.', true);
+        }).catch(function (err) {
+          AuthUI.msg('auth-reset-msg', err.message);
+        }).finally(function () {
+          AuthUI.busy(resetForm, false);
+        });
+      });
+
+      setpassForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var p1 = document.getElementById('auth-new-pass').value;
+        var p2 = document.getElementById('auth-new-pass2').value;
+        if (p1.length < 8) { AuthUI.msg('auth-setpass-msg', 'La contraseña debe tener al menos 8 caracteres.'); return; }
+        if (p1 !== p2) { AuthUI.msg('auth-setpass-msg', 'Las contraseñas no coinciden.'); return; }
+        AuthUI.busy(setpassForm, true, 'Guardando…');
+        Auth.setPassword(p1).then(function () {
+          setpassForm.reset();
+          toast('Contraseña actualizada.', 'success');
+        }).catch(function (err) {
+          AuthUI.msg('auth-setpass-msg', err.message);
+        }).finally(function () {
+          AuthUI.busy(setpassForm, false);
+        });
+      });
+
+      document.getElementById('auth-denied-logout').addEventListener('click', function () { Auth.signOut(); });
+      document.getElementById('btn-logout').addEventListener('click', function () { Auth.signOut(); });
+    }
+  };
 
   window.Ademincol = window.Ademincol || {};
   window.Ademincol.UI = UI;
