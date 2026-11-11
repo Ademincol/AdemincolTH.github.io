@@ -31,6 +31,12 @@
     setTimeout(function () { el.remove(); }, 4200);
   }
 
+  // El historial es secundario: si falla, se avisa pero no se interrumpe la operación.
+  function historyError(err) {
+    console.error('No se pudo guardar el historial:', err);
+    toast('El cambio se guardó, pero el historial no: ' + (err && err.message ? err.message : err), 'error');
+  }
+
   /* ---------------- Modal Helpers ---------------- */
   var Modal = {
     open: function (title, bodyHtml, footButtons) {
@@ -59,6 +65,15 @@
     }
   };
 
+  /* ---------------- Gráficos del dashboard ---------------- */
+  function renderCharts(rows) {
+    Charts.renderChart('chart-empresa', rows, 'empresa');
+    Charts.renderChart('chart-sexo', rows, 'sexo');
+    Charts.renderChart('chart-area', rows, 'area');
+    Charts.renderChart('chart-tipo', rows, 'tipo_contrato');
+    Charts.renderChart('chart-cargo', rows, 'cargo', 10);
+  }
+
   /* ---------------- Gestor de Tema (Claro / Oscuro) ---------------- */
   var Theme = {
     init: function () {
@@ -75,11 +90,7 @@
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('ademincol_theme', next);
       this.updateBtn();
-      Charts.renderChart('chart-empresa', Store.get().employees, 'empresa');
-      Charts.renderChart('chart-sexo', Store.get().employees, 'sexo');
-      Charts.renderChart('chart-area', Store.get().employees, 'area');
-      Charts.renderChart('chart-tipo', Store.get().employees, 'tipo_contrato');
-      Charts.renderChart('chart-cargo', Store.get().employees, 'cargo', 10);
+      renderCharts(Store.get().employees);
     },
     updateBtn: function () {
       var btn = document.getElementById('btn-theme-toggle');
@@ -151,11 +162,7 @@
         : 'Aún no hay empleados registrados. Importa un Excel o crea el primer registro desde Personal.';
     }
 
-    Charts.renderChart('chart-empresa', rows, 'empresa');
-    Charts.renderChart('chart-sexo', rows, 'sexo');
-    Charts.renderChart('chart-area', rows, 'area');
-    Charts.renderChart('chart-tipo', rows, 'tipo_contrato');
-    Charts.renderChart('chart-cargo', rows, 'cargo', 10);
+    renderCharts(rows);
   };
 
   /* ---- Personal (Filtros, Tabla, Ordenamiento y Paginación) ---- */
@@ -393,7 +400,7 @@
       DB.putEmployee(updated).then(function () {
         Store.upsertEmployee(updated);
         var h = { ts: now, action: 'create', employeeId: updated.id, employeeNombre: updated.nombre, field: null, oldV: null, newV: null };
-        DB.addHistory(h);
+        DB.addHistory(h).catch(historyError);
         Store.addHistoryLocal(h);
         toast('Empleado creado correctamente.', 'success');
         Modal.close();
@@ -412,8 +419,8 @@
           return { ts: now, action: 'update', employeeId: updated.id, employeeNombre: updated.nombre, field: c.label, oldV: c.oldV, newV: c.newV };
         });
         if (entries.length) {
-          DB.addHistoryMany(entries);
-          entries.slice().reverse().forEach(function (e) { Store.addHistoryLocal(e); });
+          DB.addHistoryMany(entries).catch(historyError);
+          Store.addHistoryManyLocal(entries);
         }
         toast(changes.length ? ('Cambios guardados (' + changes.length + ' campo' + (changes.length === 1 ? '' : 's') + ').') : 'Sin cambios para guardar.', 'success');
         Modal.close();
@@ -431,7 +438,7 @@
           DB.deleteEmployee(id).then(function () {
             Store.removeEmployee(id);
             var h = { ts: Utils.nowIso(), action: 'delete', employeeId: id, employeeNombre: r.nombre, field: null, oldV: null, newV: null };
-            DB.addHistory(h);
+            DB.addHistory(h).catch(historyError);
             Store.addHistoryLocal(h);
             toast('Empleado eliminado.', 'success');
             Modal.close();
@@ -555,12 +562,14 @@
             return { ts: now, action: 'catalog_rename', employeeId: r.id, employeeNombre: r.nombre, field: label, oldV: oldVal, newV: newVal };
           });
           DB.putEmployees(updates).then(function () {
-            updates.forEach(function (u) { Store.upsertEmployee(u); });
-            DB.addHistoryMany(entries);
-            entries.slice().reverse().forEach(function (e) { Store.addHistoryLocal(e); });
+            Store.upsertMany(updates);
+            DB.addHistoryMany(entries).catch(historyError);
+            Store.addHistoryManyLocal(entries);
             toast('Se actualizaron ' + updates.length + ' registro(s).', 'success');
             UI.renderCatalogs();
             Modal.close();
+          }).catch(function (err) {
+            toast('Error al renombrar: ' + (err.message || err), 'error');
           });
         }
       }
@@ -724,16 +733,32 @@
       u.changes.forEach(function (c) { historyEntries.push({ ts: now, action: 'import_update', employeeId: u.id, employeeNombre: u.nombre, field: c.label, oldV: c.oldV, newV: c.newV }); });
     });
 
+    if (btn) btn.textContent = 'Guardando…';
+
     DB.putEmployees(allToSave)
-      .then(function () { allToSave.forEach(function (r) { Store.upsertEmployee(r); }); return historyEntries.length ? DB.addHistoryMany(historyEntries) : Promise.resolve(); })
-      .then(function () { historyEntries.slice().reverse().forEach(function (e) { Store.addHistoryLocal(e); }); toast('Importación completada: ' + newRecords.length + ' nuevos, ' + updateRecords.length + ' actualizados.', 'success'); UI.renderImportStep(4); })
+      .then(function () {
+        // Una sola actualización del Store (antes: un re-render completo por registro).
+        Store.upsertMany(allToSave);
+        // El historial no debe bloquear la importación: los empleados ya se guardaron.
+        var histPromise = historyEntries.length ? DB.addHistoryMany(historyEntries) : Promise.resolve();
+        return histPromise.then(function () {
+          Store.addHistoryManyLocal(historyEntries);
+        }, function (err) {
+          console.error('No se pudo guardar el historial de la importación:', err);
+          toast('Los empleados se guardaron, pero el historial no: ' + (err.message || err), 'error');
+        });
+      })
+      .then(function () {
+        toast('Importación completada: ' + newRecords.length + ' nuevos, ' + updateRecords.length + ' actualizados.', 'success');
+        UI.renderImportStep(4);
+      })
       .catch(function (err) {
         console.error('Error al confirmar importación:', err);
         toast('Error al confirmar importación: ' + (err.message || err), 'error');
       })
       .finally(function () {
-        // Reactivar el botón
-        if (btn) btn.disabled = false;
+        // Reactivar el botón (si sigue en pantalla)
+        if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Confirmar importación'; }
       });
   };
 
@@ -937,42 +962,15 @@
     });
 
     /* ---- Arranque (Boot) ---- */
+    // Los datos viven solo en Supabase; ya no hay datos embebidos en el HTML.
+    // Si la tabla está vacía, se cargan desde "Importar Excel".
     DB.open().then(function () {
-      return DB.getAllEmployees();
-    }).then(function (existing) {
-      if (existing.length) return existing;
-      var seedEl = document.getElementById('seed-data');
-      var seed = [];
-      try {
-        seed = JSON.parse(seedEl ? seedEl.textContent || '[]' : '[]');
-      } catch (e) {
-        seed = [];
-      }
-      seed.forEach(function (r) {
-        if (!r.id) r.id = Utils.uid();
-        else r.id = String(r.id);
-      });
-      return DB.putEmployees(seed).then(function () {
-        return DB.addHistory({
-          ts: Utils.nowIso(),
-          action: 'import_create',
-          employeeId: null,
-          employeeNombre: 'Carga inicial',
-          field: null,
-          oldV: null,
-          newV: 'Datos iniciales cargados (' + seed.length + ' registros).'
-        });
-      }).then(function () { return seed; });
-    }).then(function (employees) {
-      Store.setEmployees(employees);
-      return DB.getAllHistory();
-    }).then(function (history) {
-      history.sort(function (a, b) { return new Date(b.ts) - new Date(a.ts); });
-      Store.setHistory(history);
+      return Promise.all([DB.getAllEmployees(), DB.getAllHistory()]);
+    }).then(function (res) {
+      Store.setHistory(res[1]);
+      // setEmployees notifica al Store, que ya dibuja dashboard, filtros y tabla.
+      Store.setEmployees(res[0]);
       UI.navigate('dashboard');
-      UI.renderDashboard();
-      UI.renderPersonalFilters();
-      UI.renderPersonalTable();
     }).catch(function (err) {
       console.error(err);
       toast('Error inicializando la aplicación: ' + (err && err.message ? err.message : err), 'error');

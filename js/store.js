@@ -58,6 +58,30 @@
       notify('employees');
     },
 
+    // Inserta/actualiza muchos registros y notifica UNA sola vez
+    // (evita re-renderizar dashboard, filtros y tabla por cada registro).
+    upsertMany: function (recs) {
+      if (!recs || !recs.length) return;
+      var index = new Map();
+      state.employees.forEach(function (e, i) { index.set(String(e.id), i); });
+      recs.forEach(function (rec) {
+        var i = index.get(String(rec.id));
+        if (i !== undefined) {
+          state.employees[i] = rec;
+        } else {
+          index.set(String(rec.id), state.employees.length);
+          state.employees.push(rec);
+        }
+      });
+      notify('employees');
+    },
+
+    addHistoryManyLocal: function (entries) {
+      if (!entries || !entries.length) return;
+      state.history = entries.slice().reverse().concat(state.history);
+      notify('history');
+    },
+
     removeEmployee: function (id) {
       state.employees = state.employees.filter(function (e) { return e.id !== id; });
       notify('employees');
