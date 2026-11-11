@@ -736,30 +736,6 @@
         if (btn) btn.disabled = false;
       });
   };
-    var p = importState.preview, now = Utils.nowIso();
-    var newRecords = p.toCreate.slice();
-    var updateRecords = p.toUpdate.map(function (u) { return u.merged; });
-    var allToSave = newRecords.concat(updateRecords);
-    var historyEntries = [];
-
-    newRecords.forEach(function (r) {
-      historyEntries.push({ ts: now, action: 'import_create', employeeId: r.id, employeeNombre: r.nombre, field: null, oldV: null, newV: null });
-    });
-    p.toUpdate.forEach(function (u) {
-      u.changes.forEach(function (c) {
-        historyEntries.push({ ts: now, action: 'import_update', employeeId: u.id, employeeNombre: u.nombre, field: c.label, oldV: c.oldV, newV: c.newV });
-      });
-    });
-
-    DB.putEmployees(allToSave).then(function () {
-      allToSave.forEach(function (r) { Store.upsertEmployee(r); });
-      return historyEntries.length ? DB.addHistoryMany(historyEntries) : Promise.resolve();
-    }).then(function () {
-      historyEntries.slice().reverse().forEach(function (e) { Store.addHistoryLocal(e); });
-      toast('Importación completada: ' + newRecords.length + ' nuevos, ' + updateRecords.length + ' actualizados.', 'success');
-      UI.renderImportStep(4);
-    });
-  };
 
   /* ================================================================
      Inicialización de Eventos y Arranque
