@@ -526,19 +526,103 @@
   };
 
   /* ---- Catálogos y Configuración ---- */
+  var CATALOG_ICONS = {
+    empresa: '🏢',
+    categoria: '🏷️',
+    area: '📂',
+    cargo: '💼',
+    ciudad: '📍',
+    tipo_contrato: '📝',
+    tipo_contrato_inicial: '📋'
+  };
+
   UI.renderCatalogs = function () {
+    // 1. Actualizar métricas del resumen superior si los elementos existen
+    var statEmp = document.getElementById('cfg-stat-employees');
+    var statHist = document.getElementById('cfg-stat-history');
+    var statCat = document.getElementById('cfg-stat-catalogs');
+    var employees = Store.get().employees || [];
+    var history = Store.get().history || [];
+
+    if (statEmp) statEmp.textContent = Utils.fmtInt(employees.length);
+    if (statHist) statHist.textContent = Utils.fmtInt(history.length);
+    if (statCat) statCat.textContent = CATALOG_FIELDS.length;
+
     var grid = document.getElementById('catalogs-grid');
     if (!grid) return;
+
+    // 2. Renderizar cada tarjeta de catálogo con diseño ejecutivo
     grid.innerHTML = CATALOG_FIELDS.map(function (fk) {
       var f = FIELD_BY_KEY[fk];
-      var counts = Charts.countBy(Store.get().employees, fk);
-      return '<div class="panel chart-card catalog-card" data-catalog="' + fk + '"><h3>' + f.label + '</h3>' +
-        counts.map(function (c) {
-          return '<div class="catalog-value-row"><span class="cnt">' + Utils.fmtInt(c.value) + '</span><span style="flex:1;">' + Utils.escapeHtml(c.label) + '</span>' +
-            '<button class="btn btn-sm btn-ghost" data-requires="editor" data-rename="' + Utils.escapeHtml(c.label) + '">Renombrar</button></div>';
-        }).join('') + '</div>';
+      var counts = Charts.countBy(employees, fk);
+      var icon = CATALOG_ICONS[fk] || '📁';
+      var totalAssigned = counts.reduce(function (sum, item) { return sum + item.value; }, 0);
+      var showSearch = counts.length > 5;
+
+      var searchHtml = showSearch ? 
+        ('<div class="catalog-search-wrap">' +
+          '<input type="search" class="catalog-search-input" placeholder="Filtrar ' + f.label.toLowerCase() + '…" data-cat-filter="' + fk + '">' +
+        '</div>') : '';
+
+      var rowsHtml = counts.length ? counts.map(function (c) {
+        return '<div class="catalog-value-row" data-val="' + Utils.escapeHtml(c.label.toLowerCase()) + '">' +
+          '<div class="catalog-value-main">' +
+            '<span class="catalog-cnt-badge" title="' + c.value + ' personas">' + Utils.fmtInt(c.value) + '</span>' +
+            '<span class="catalog-value-text" title="' + Utils.escapeHtml(c.label) + '">' + Utils.escapeHtml(c.label) + '</span>' +
+          '</div>' +
+          '<button class="btn-catalog-rename" data-requires="editor" data-rename="' + Utils.escapeHtml(c.label) + '" title="Renombrar en todos los registros">✎ Renombrar</button>' +
+        '</div>';
+      }).join('') : '<div class="catalog-empty-notice">No hay registros con este campo aún.</div>';
+
+      return '<div class="catalog-card" data-catalog="' + fk + '">' +
+        '<div class="catalog-card-header">' +
+          '<div class="catalog-card-header-title">' +
+            '<span class="catalog-card-icon">' + icon + '</span>' +
+            '<h3>' + f.label + '</h3>' +
+          '</div>' +
+          '<span class="catalog-count-badge">' + counts.length + ' ' + (counts.length === 1 ? 'valor' : 'valores') + '</span>' +
+        '</div>' +
+        searchHtml +
+        '<div class="catalog-values-list" id="cat-list-' + fk + '">' +
+          rowsHtml +
+        '</div>' +
+        '<div class="catalog-card-footer">' +
+          '<span>Asignaciones: <b>' + Utils.fmtInt(totalAssigned) + '</b></span>' +
+          '<span>' + counts.length + ' categorías</span>' +
+        '</div>' +
+      '</div>';
     }).join('');
 
+    // 3. Conectar búsqueda rápida dentro de tarjetas con muchos valores
+    grid.querySelectorAll('.catalog-search-input').forEach(function (input) {
+      input.addEventListener('input', function () {
+        var query = (this.value || '').trim().toLowerCase();
+        var catKey = this.dataset.catFilter;
+        var listContainer = document.getElementById('cat-list-' + catKey);
+        if (!listContainer) return;
+
+        var rows = listContainer.querySelectorAll('.catalog-value-row');
+        var matched = 0;
+        rows.forEach(function (row) {
+          var val = row.dataset.val || '';
+          var visible = !query || val.indexOf(query) !== -1;
+          row.style.display = visible ? 'flex' : 'none';
+          if (visible) matched++;
+        });
+
+        var emptyNotice = listContainer.querySelector('.catalog-empty-notice');
+        if (matched === 0 && !emptyNotice) {
+          var p = document.createElement('div');
+          p.className = 'catalog-empty-notice search-none';
+          p.textContent = 'Sin coincidencias para "' + query + '".';
+          listContainer.appendChild(p);
+        } else if (matched > 0 && emptyNotice && emptyNotice.classList.contains('search-none')) {
+          emptyNotice.remove();
+        }
+      });
+    });
+
+    // 4. Conectar botones de renombrar
     grid.querySelectorAll('[data-rename]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var card = this.closest('[data-catalog]');
