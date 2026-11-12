@@ -10,7 +10,9 @@
 
   var Exporter = {
     exportToExcel: function (records, filename) {
+      // Build column list (id + defined fields)
       var cols = ['id'].concat(FIELDS.map(function (f) { return f.key; }));
+      // Convert records to plain objects matching column order
       var rows = records.map(function (r) {
         var o = {};
         cols.forEach(function (c) {
@@ -19,7 +21,44 @@
         return o;
       });
 
+      // Create worksheet from JSON data
       var ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+
+      // Apply header styling (bold, gray background, borders)
+      var range = XLSX.utils.decode_range(ws['!ref']);
+      for (var C = range.s.c; C <= range.e.c; ++C) {
+        var cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
+        if (!ws[cellRef]) continue;
+        ws[cellRef].s = {
+          font: { bold: true, color: { rgb: "000000" } },
+          fill: { fgColor: { rgb: "D9D9D9" } },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Apply alternating row colors (banded rows)
+      for (var R = range.s.r + 1; R <= range.e.r; ++R) {
+        var fillColor = (R % 2 === 0) ? "F2F9FF" : "FFFFFF";
+        for (var C = range.s.c; C <= range.e.c; ++C) {
+          var cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellRef]) continue;
+          ws[cellRef].s = ws[cellRef].s || {};
+          ws[cellRef].s.fill = { fgColor: { rgb: fillColor } };
+        }
+      }
+
+      // Enable autofilter so Excel shows filter dropdowns
+      ws['!autofilter'] = { ref: ws['!ref'] };
+
+      // Set column widths for readability
+      ws['!cols'] = cols.map(function () { return { wch: 20 }; });
+
+      // Build workbook and trigger download
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Personal');
       XLSX.writeFile(wb, filename);
