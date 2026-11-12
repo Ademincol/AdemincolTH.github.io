@@ -11,32 +11,52 @@
   var Exporter = {
     /**
      * Exporta registros a .xlsx con ExcelJS.
-     * Crea una Excel Table (ListObject) con filtros y filas alternas.
-     * Descarga mediante FileSaver o fallback con <a>.
+     * Crea una Excel Table (ListObject) con filtros, estilos y filas alternas.
      */
     exportToExcel: function (records, filename) {
       var cols = ['id'].concat(FIELDS.map(function (f) { return f.key; }));
 
-      var dataRows = records.map(function (r) {
-        var o = {};
-        cols.forEach(function (c) { o[c] = r[c] === undefined ? '' : r[c]; });
-        return o;
+      // Convertir registros a arrays de valores (no objetos)
+      var tableRows = records.map(function (r) {
+        return cols.map(function (c) { return r[c] === undefined ? '' : r[c]; });
       });
 
       var EJ = window.ExcelJS;
       var workbook = new EJ.Workbook();
       var ws = workbook.addWorksheet('Personal');
 
+      // Definir columnas con ancho razonable
       ws.columns = cols.map(function (c) {
         return { header: c, key: c, width: 20 };
       });
 
-      ws.addRows(dataRows);
+      // Crear la tabla formal (ListObject) con los datos incluidos
+      ws.addTable({
+        name: 'EmployeesTable',
+        ref: 'A1',
+        headerRow: true,
+        totalsRow: false,
+        style: {
+          theme: 'TableStyleMedium9',
+          showRowStripes: true,
+          showFirstColumn: false,
+          showLastColumn: false
+        },
+        columns: cols.map(function (c) {
+          return { name: c, filterButton: true };
+        }),
+        rows: tableRows
+      });
 
+      // Aplicar estilo al encabezado (negrita, fondo azul, texto blanco)
       var headerRow = ws.getRow(1);
       headerRow.eachCell({ includeEmpty: true }, function (cell) {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F81BD' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF4F81BD' }
+        };
         cell.border = {
           top:    { style: 'thin', color: { argb: 'FF000000' } },
           left:   { style: 'thin', color: { argb: 'FF000000' } },
@@ -45,14 +65,7 @@
         };
       });
 
-      ws.addTable({
-        name: 'EmployeesTable',
-        ref: 'A1',
-        headerRow: true,
-        style: { theme: 'TableStyleMedium9', showRowStripes: true },
-        columns: cols.map(function (c) { return { name: c, filterButton: true }; })
-      });
-
+      // Generar buffer y descargar
       workbook.xlsx.writeBuffer()
         .then(function (buffer) {
           var blob = new Blob([buffer], {
