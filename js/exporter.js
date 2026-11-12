@@ -132,6 +132,11 @@
 
       // Bordes estándar para toda la cuadrícula
       var borderHeader = {
+          top:    { style: 'thin', color: { argb: 'FF000000' } },
+          left:   { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'medium', color: { argb: 'FF000000' } },
+          right:  { style: 'thin', color: { argb: 'FF000000' } }
+        };
         top:    { style: 'thin', color: { argb: 'FFFFFFFF' } },
         left:   { style: 'thin', color: { argb: 'FFFFFFFF' } },
         bottom: { style: 'medium', color: { argb: 'FF333333' } },
@@ -139,6 +144,11 @@
       };
 
       var borderCell = {
+          top:    { style: 'thin', color: { argb: 'FF000000' } },
+          left:   { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right:  { style: 'thin', color: { argb: 'FF000000' } }
+        }
         top:    { style: 'thin', color: { argb: 'FFD0D3D4' } },
         left:   { style: 'thin', color: { argb: 'FFD0D3D4' } },
         bottom: { style: 'thin', color: { argb: 'FFD0D3D4' } },
@@ -177,7 +187,21 @@
           var rawVal = cell.value ? String(cell.value) : '';
 
           // Estilo base de celda
+                    // Estilo base de celda
           cell.border = borderCell;
+          cell.font = { size: 10, color: { argb: 'FF2C3E50' } };
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: (colDef && colDef.align) ? colDef.align : 'center'
+          };
+          // Alternar colores de fondo blanco / gris claro según la fila
+          var bgColor = (r % 2 === 0) ? 'FFFFFFFF' : 'FFF2F2F2';
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: bgColor }
+          };
+
           cell.font = { size: 10, color: { argb: 'FF2C3E50' } };
           cell.alignment = {
             vertical: 'middle',
