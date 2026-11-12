@@ -8,103 +8,214 @@
   var FIELDS = C.FIELDS;
   var Utils = C.Utils;
 
+  // Mapeo de colores y etiquetas personalizadas para el encabezado
+  var CUSTOM_LABELS = {
+    estado: 'ESTADO DEL TRABAJADOR',
+    nombre: 'APELLIDOS Y NOMBRE',
+    cedula: 'CEDULA',
+    empresa: 'EMPRESA',
+    fecha_cambio_modalidad: 'FECHA DE CAMBIO DE MODALIDAD DE CONTRATO',
+    fecha_retiro: 'FECHA RETIRO DEFINITIVA',
+    fondo_pension: 'PENSIONES',
+    arl: 'ARL',
+    eps: 'EPS',
+    ccf: 'CCF',
+    fondo_cesantias: 'CESANTIAS'
+  };
+
+  // Paleta de colores temáticos por grupo para los encabezados
+  var GROUP_HEADER_COLORS = {
+    empresa: 'FFFF6E4A',       // Naranja coral
+    basico: 'FF1A6F8A',        // Azul petróleo / Teal
+    identificacion: 'FF2B78C5',// Azul real
+    contacto: 'FF34495E',      // Pizarra
+    emergencia: 'FF34495E',    // Pizarra
+    puesto: 'FF683391',        // Morado / Púrpura
+    formacion: 'FF512E5F',     // Púrpura oscuro
+    financiero: 'FFD82E6A'     // Magenta / Fucsia
+  };
+
   var Exporter = {
     /**
      * Exporta registros a .xlsx con ExcelJS.
-     * Crea una Excel Table (ListObject) con filtros, estilos corporativos
-     * y columnas auto-ajustadas al contenido.
+     * Crea una Excel Table formal (ListObject) con filtros automáticos,
+     * cabeceras temáticas multicolores, pastillas de estado (ACTIVO / RETIRADO),
+     * y columnas auto-adaptadas al contenido.
      */
     exportToExcel: function (records, filename) {
-      var cols = ['id'].concat(FIELDS.map(function (f) { return f.key; }));
-      var colLabels = ['ITEM No.'].concat(FIELDS.map(function (f) { return f.label.toUpperCase(); }));
-
-      // Convertir registros a arrays de valores
-      var tableRows = records.map(function (r) {
-        return cols.map(function (c) { return r[c] === undefined ? '' : String(r[c]); });
+      // 1. Definir columnas en el orden exacto de la plantilla
+      var initialKeys = ['empresa', 'estado', 'cedula', 'nombre'];
+      var remainingFields = FIELDS.filter(function (f) {
+        return initialKeys.indexOf(f.key) === -1;
       });
 
+      var orderedCols = [
+        { key: '__item_no__', label: 'ITEM No.', headerColor: 'FFFF6E4A', align: 'center' },
+        { key: 'empresa', label: 'EMPRESA', headerColor: 'FFFF6E4A', align: 'center' },
+        { key: 'estado', label: 'ESTADO DEL TRABAJADOR', headerColor: 'FF2B78C5', align: 'center' },
+        { key: 'cedula', label: 'CEDULA', headerColor: 'FF2B78C5', align: 'center' },
+        { key: 'nombre', label: 'APELLIDOS Y NOMBRE', headerColor: 'FF1A6F8A', align: 'left' }
+      ];
+
+      remainingFields.forEach(function (f) {
+        var label = CUSTOM_LABELS[f.key] || f.label.toUpperCase();
+        var color = GROUP_HEADER_COLORS[f.group] || 'FF1A6F8A';
+        var align = 'center';
+        if (f.kind === 'textarea' || f.key.indexOf('nombre') !== -1 || f.key === 'direccion') {
+          align = 'left';
+        }
+        orderedCols.push({
+          key: f.key,
+          label: label,
+          headerColor: color,
+          align: align
+        });
+      });
+
+      // 2. Construir matriz de datos con valores limpios
+      var tableRows = records.map(function (r, index) {
+        return orderedCols.map(function (col) {
+          if (col.key === '__item_no__') {
+            return index + 1;
+          }
+          var val = r[col.key];
+          if (val === undefined || val === null || val === '') {
+            return '';
+          }
+          if (col.key === 'estado') {
+            var st = String(val).trim().toUpperCase();
+            return st === 'ACTIVO' ? '● ACTIVO' : (st === 'RETIRADO' ? '● RETIRADO' : st);
+          }
+          return String(val).trim();
+        });
+      });
+
+      // 3. Crear Workbook y Hoja
       var EJ = window.ExcelJS;
       var workbook = new EJ.Workbook();
-      var ws = workbook.addWorksheet('Personal');
+      var ws = workbook.addWorksheet('Hoja1', {
+        views: [{ showGridLines: true }]
+      });
 
-      // ------- Calcular ancho optimo por columna -------
-      var colWidths = colLabels.map(function (label, i) {
-        var maxLen = label.length;
+      // 4. Calcular ancho adaptativo para cada columna
+      var colWidths = orderedCols.map(function (col, colIdx) {
+        var maxLen = col.label.length;
         tableRows.forEach(function (row) {
-          var val = row[i] || '';
-          if (val.length > maxLen) maxLen = val.length;
+          var cellVal = String(row[colIdx] || '');
+          if (cellVal.length > maxLen) {
+            maxLen = cellVal.length;
+          }
         });
-        // Minimo 10, maximo 45, +2 de padding
-        return Math.min(45, Math.max(10, maxLen + 2));
+        // Margen extra para el botón de autofiltro y buena lectura
+        return Math.min(50, Math.max(12, maxLen + 5));
       });
 
-      // Definir columnas con ancho calculado
-      ws.columns = cols.map(function (c, i) {
-        return { header: colLabels[i], key: c, width: colWidths[i] };
+      ws.columns = orderedCols.map(function (col, i) {
+        return { header: col.label, key: col.key, width: colWidths[i] };
       });
 
-      // ------- Crear la tabla formal (ListObject) -------
+      // 5. Agregar la Tabla formal (ListObject)
       ws.addTable({
-        name: 'EmployeesTable',
+        name: 'PersonalAdemincol',
         ref: 'A1',
         headerRow: true,
         totalsRow: false,
         style: {
           theme: null,
-          showRowStripes: true,
-          showFirstColumn: false,
-          showLastColumn: false
+          showRowStripes: false
         },
-        columns: colLabels.map(function (label) {
-          return { name: label, filterButton: true };
+        columns: orderedCols.map(function (col) {
+          return { name: col.label, filterButton: true };
         }),
         rows: tableRows
       });
 
-      // ------- Estilo del encabezado (salmon/naranja) -------
+      // Bordes estándar para toda la cuadrícula
+      var borderHeader = {
+        top:    { style: 'thin', color: { argb: 'FFFFFFFF' } },
+        left:   { style: 'thin', color: { argb: 'FFFFFFFF' } },
+        bottom: { style: 'medium', color: { argb: 'FF333333' } },
+        right:  { style: 'thin', color: { argb: 'FFFFFFFF' } }
+      };
+
+      var borderCell = {
+        top:    { style: 'thin', color: { argb: 'FFD0D3D4' } },
+        left:   { style: 'thin', color: { argb: 'FFD0D3D4' } },
+        bottom: { style: 'thin', color: { argb: 'FFD0D3D4' } },
+        right:  { style: 'thin', color: { argb: 'FFD0D3D4' } }
+      };
+
+      // 6. Estilizar encabezados (Fila 1) con los colores exactos
       var headerRow = ws.getRow(1);
-      headerRow.height = 36;
-      headerRow.eachCell({ includeEmpty: true }, function (cell) {
-        cell.font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+      headerRow.height = 42;
+      headerRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
+        var colDef = orderedCols[colNumber - 1];
+        var bgColor = (colDef && colDef.headerColor) ? colDef.headerColor : 'FF1A6F8A';
+
+        cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFF4B084' }
+          fgColor: { argb: bgColor }
         };
         cell.alignment = {
           horizontal: 'center',
           vertical: 'middle',
           wrapText: true
         };
-        cell.border = {
-          top:    { style: 'thin', color: { argb: 'FF000000' } },
-          left:   { style: 'thin', color: { argb: 'FF000000' } },
-          bottom: { style: 'thin', color: { argb: 'FF000000' } },
-          right:  { style: 'thin', color: { argb: 'FF000000' } }
-        };
+        cell.border = borderHeader;
       });
 
-      // ------- Estilos de filas de datos (alterno verde/rosa) -------
-      var greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
-      var pinkFill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
-      var thinBorder = {
-        top:    { style: 'thin', color: { argb: 'FF000000' } },
-        left:   { style: 'thin', color: { argb: 'FF000000' } },
-        bottom: { style: 'thin', color: { argb: 'FF000000' } },
-        right:  { style: 'thin', color: { argb: 'FF000000' } }
-      };
-
-      for (var r = 2; r <= tableRows.length + 1; r++) {
+      // 7. Estilizar filas de datos (Fila 2 en adelante)
+      var totalRows = tableRows.length;
+      for (var r = 2; r <= totalRows + 1; r++) {
         var dataRow = ws.getRow(r);
-        var fill = (r % 2 === 0) ? greenFill : pinkFill;
-        dataRow.eachCell({ includeEmpty: true }, function (cell) {
-          cell.fill = fill;
-          cell.border = thinBorder;
-          cell.alignment = { vertical: 'middle', wrapText: false };
+        dataRow.height = 24;
+
+        dataRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
+          var colDef = orderedCols[colNumber - 1];
+          var rawVal = cell.value ? String(cell.value) : '';
+
+          // Estilo base de celda
+          cell.border = borderCell;
+          cell.font = { size: 10, color: { argb: 'FF2C3E50' } };
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: (colDef && colDef.align) ? colDef.align : 'center'
+          };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' }
+          };
+
+          // Formato especial para Columna ITEM No.
+          if (colDef && colDef.key === '__item_no__') {
+            cell.font = { bold: true, size: 10, color: { argb: 'FF000000' } };
+          }
+
+          // Formato especial tipo "badge" para ESTADO DEL TRABAJADOR
+          if (colDef && colDef.key === 'estado') {
+            if (rawVal.indexOf('ACTIVO') !== -1) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFA9DFBF' } // Verde pastel
+              };
+              cell.font = { bold: true, size: 10, color: { argb: 'FF145A32' } }; // Verde oscuro
+            } else if (rawVal.indexOf('RETIRADO') !== -1) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF5B7B1' } // Rojo/Rosa pastel
+              };
+              cell.font = { bold: true, size: 10, color: { argb: 'FF78281F' } }; // Rojo vino
+            }
+          }
         });
       }
 
-      // ------- Generar buffer y descargar -------
+      // 8. Generar buffer y forzar descarga
       workbook.xlsx.writeBuffer()
         .then(function (buffer) {
           var blob = new Blob([buffer], {
@@ -126,7 +237,7 @@
           }
         })
         .catch(function (err) {
-          console.error('Error generating Excel:', err);
+          console.error('Error al generar Excel:', err);
         });
     },
 
@@ -161,7 +272,7 @@
           try {
             var data = JSON.parse(e.target.result);
             if (!data || !Array.isArray(data.employees)) {
-              return reject(new Error('El archivo no tiene un formato valido de copia de seguridad.'));
+              return reject(new Error('El archivo no tiene un formato válido de copia de seguridad.'));
             }
             resolve({
               employees: data.employees,
