@@ -55,19 +55,24 @@
         columns: cols.map(function (c) { return { name: c, filterButton: true }; })
       });
 
-      // Write the workbook to a Blob and trigger download
+      // Write the workbook to a Blob and trigger download using FileSaver.js
       workbook.xlsx.writeBuffer().then(function (buffer) {
         var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function () {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 100);
+        // Use FileSaver.saveAs if available, otherwise fallback to anchor
+        if (window.saveAs) {
+          window.saveAs(blob, filename);
+        } else {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 100);
+        }
       }).catch(function (err) {
         console.error('Error generating Excel file with ExcelJS:', err);
         toast('No se pudo generar el archivo Excel: ' + (err && err.message ? err.message : err), 'error');
