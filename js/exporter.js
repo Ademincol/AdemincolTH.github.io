@@ -41,7 +41,7 @@
      * Crea una hoja con autofiltros, cabeceras temáticas multicolores,
      * pastillas de estado (ACTIVO / RETIRADO), bordes negros y cebreado blanco / gris claro.
      */
-    exportToExcel: function (records, filename) {
+    exportToExcel: function (records, filename, selectedKeys) {
       // 1. Definir columnas en el orden exacto de la plantilla
       var initialKeys = ['empresa', 'estado', 'cedula', 'nombre'];
       var remainingFields = FIELDS.filter(function (f) {
@@ -70,6 +70,35 @@
           align: align
         });
       });
+
+      // Incluir también cualquier columna adicional presente en los registros de la base de datos
+      if (records && records.length) {
+        var existingKeys = new Set(orderedCols.map(function (c) { return c.key; }));
+        var ignoreKeys = new Set(['id', '__item_no__']);
+        records.forEach(function (rec) {
+          if (rec && typeof rec === 'object') {
+            Object.keys(rec).forEach(function (k) {
+              if (!existingKeys.has(k) && !ignoreKeys.has(k)) {
+                existingKeys.add(k);
+                orderedCols.push({
+                  key: k,
+                  label: (CUSTOM_LABELS[k] || k.replace(/_/g, ' ')).toUpperCase(),
+                  headerColor: 'FF1A6F8A',
+                  align: 'center'
+                });
+              }
+            });
+          }
+        });
+      }
+
+      // Si el usuario especificó columnas seleccionadas, filtrar orderedCols
+      if (Array.isArray(selectedKeys) && selectedKeys.length > 0) {
+        var selSet = new Set(selectedKeys);
+        orderedCols = orderedCols.filter(function (col) {
+          return col.key === '__item_no__' || selSet.has(col.key);
+        });
+      }
 
       // 2. Construir matriz de datos con valores limpios
       var tableRows = records.map(function (r, index) {
@@ -293,6 +322,7 @@
   };
 
   window.Ademincol = window.Ademincol || {};
+  window.Ademincol.CUSTOM_LABELS = CUSTOM_LABELS;
   window.Ademincol.Exporter = Exporter;
 
 })(window);

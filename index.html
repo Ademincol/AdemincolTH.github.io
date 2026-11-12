@@ -112,7 +112,6 @@
         </div>
         <div class="topbar-actions" id="topbar-actions">
           <button class="btn btn-sm btn-ghost" id="btn-theme-toggle" aria-label="Cambiar tema">🌙 <span class="btn-text">Oscuro</span></button>
-          <button class="btn btn-primary btn-sm" id="btn-new-employee" data-requires="editor">+ Nuevo empleado</button>
           <span class="user-chip" id="user-chip" title=""></span>
           <button class="btn btn-sm btn-ghost" id="btn-logout">Salir</button>
         </div>
@@ -170,9 +169,12 @@
 
         <!-- Vista: Personal -->
         <section class="view" id="view-personal" data-view="personal">
-          <div class="section-head">
-            <span class="eyebrow">Personal</span>
-            <h2>Base de empleados</h2>
+          <div class="section-head section-head-with-action">
+            <div>
+              <span class="eyebrow">Personal</span>
+              <h2>Base de empleados</h2>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-new-employee" data-requires="editor">+ Nuevo empleado</button>
           </div>
           <div class="panel toolbar" id="personal-toolbar">
             <div class="field search">
@@ -246,19 +248,46 @@
             <h2>Exportar Excel</h2>
             <p class="section-desc">Descarga la base de empleados en formato .xlsx, lista para abrir en Excel.</p>
           </div>
-          <div class="panel" style="display:flex; flex-direction:column; gap:14px; max-width:560px;">
-            <div>
-              <h3 style="font-size:1rem;">Exportar todos los registros</h3>
-              <p class="section-desc">Incluye las 517+ columnas y registros completos, tal como están en la aplicación.
-              </p>
-              <button class="btn btn-primary" id="btn-export-all" style="margin-top:8px;">Exportar todo a Excel</button>
+          
+          <div style="display:flex; flex-direction:column; gap:16px; max-width:820px;">
+            <!-- Tarjeta 1: Exportar Todo -->
+            <div class="panel" style="display:flex; flex-direction:column; gap:10px;">
+              <div>
+                <h3 style="font-size:1.02rem; margin-bottom:4px;">Exportar todos los registros</h3>
+                <p class="section-desc">Descarga la base de datos completa con todas las columnas y registros almacenados.</p>
+              </div>
+              <div>
+                <button class="btn btn-primary" id="btn-export-all">Exportar todo a Excel</button>
+              </div>
             </div>
-            <div style="border-top:1px solid var(--border); padding-top:14px;">
-              <h3 style="font-size:1rem;">Exportar según los filtros de Personal</h3>
-              <p class="section-desc" id="export-filtered-desc">Usa los filtros y la búsqueda definidos actualmente en
-                la sección Personal.</p>
-              <button class="btn" id="btn-export-filtered" style="margin-top:8px;">Exportar resultados
-                filtrados</button>
+
+            <!-- Tarjeta 2: Exportar según filtros con selector de columnas -->
+            <div class="panel" style="display:flex; flex-direction:column; gap:14px;">
+              <div>
+                <h3 style="font-size:1.02rem; margin-bottom:4px;">Exportar según filtros de Personal</h3>
+                <p class="section-desc" id="export-filtered-desc">Usa los filtros y la búsqueda definidos actualmente en la sección Personal.</p>
+              </div>
+
+              <!-- Selector de columnas a exportar -->
+              <div class="export-col-picker">
+                <div class="export-col-header">
+                  <div>
+                    <strong style="font-size:.86rem;">Seleccionar columnas a exportar</strong>
+                    <span id="export-cols-count" class="export-cols-badge"></span>
+                  </div>
+                  <div class="export-col-actions">
+                    <button type="button" class="btn btn-sm btn-ghost" id="btn-cols-all">✓ Todas</button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="btn-cols-none">✕ Ninguna</button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="btn-cols-basic">★ Básicas</button>
+                  </div>
+                </div>
+                <div id="export-columns-container" class="export-cols-grid"></div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="btn-export-filtered">Exportar resultados filtrados</button>
+                <span id="export-filtered-status" style="font-size:.82rem; color:var(--ink-muted);"></span>
+              </div>
             </div>
           </div>
         </section>

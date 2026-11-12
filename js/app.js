@@ -134,6 +134,7 @@
     if (view === 'importar') UI.renderImportStep(1);
     if (view === 'historial') UI.renderHistory(true);
     if (view === 'configuracion') UI.renderCatalogs();
+    if (view === 'exportar') UI.updateExportFilteredStatus();
   };
 
   /* ---- Dashboard ---- */
@@ -236,9 +237,11 @@
           '<td>' + Utils.escapeHtml(Utils.nz(r.ciudad)) + '</td>' +
           '<td>' + Utils.escapeHtml(Utils.nz(r.tipo_contrato)) + '</td>' +
           '<td class="cell-actions">' +
-          '<button class="btn btn-sm btn-ghost" data-act="view" title="Ver perfil">Ver</button>' +
-          '<button class="btn btn-sm btn-ghost" data-act="edit" data-requires="editor" title="Editar empleado">Editar</button>' +
-          '<button class="btn btn-sm btn-ghost" data-act="del" data-requires="editor" title="Eliminar empleado">Eliminar</button>' +
+          '<div class="action-btn-group">' +
+          '<button class="btn btn-sm btn-action-view" data-act="view" title="Ver perfil">Ver</button>' +
+          '<button class="btn btn-sm btn-action-edit" data-act="edit" data-requires="editor" title="Editar empleado">Editar</button>' +
+          '<button class="btn btn-sm btn-action-del" data-act="del" data-requires="editor" title="Eliminar empleado">Eliminar</button>' +
+          '</div>' +
           '</td></tr>';
       }).join('');
     }
@@ -469,9 +472,14 @@
     }
 
     el.innerHTML = matches.map(function (r) {
-      return '<div class="panel" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
-        '<div><b>' + Utils.escapeHtml(r.nombre || '') + '</b> · <span class="badge ' + (r.estado === 'ACTIVO' ? 'ok' : 'bad') + '">' + Utils.escapeHtml(r.estado || '') + '</span> · ' + Utils.escapeHtml(Utils.nz(r.cargo)) + '</div>' +
-        '<button class="btn btn-sm" data-id="' + r.id + '">Ver ficha</button></div>';
+      return '<div class="panel global-search-item">' +
+        '<div class="global-search-content">' +
+          '<span class="global-search-name">' + Utils.escapeHtml(r.nombre || '') + '</span>' +
+          '<span class="badge ' + (r.estado === 'ACTIVO' ? 'ok' : 'bad') + '"><span class="dot ' + (r.estado === 'ACTIVO' ? 'ok' : 'bad') + '"></span>' + Utils.escapeHtml(r.estado || '') + '</span>' +
+          '<span style="color:var(--ink-muted); font-size:.84rem;">· ' + Utils.escapeHtml(Utils.nz(r.cargo)) + (r.empresa ? ' · ' + Utils.escapeHtml(r.empresa) : '') + (r.cedula ? ' · C.C. ' + Utils.escapeHtml(r.cedula) : '') + '</span>' +
+        '</div>' +
+        '<button class="btn btn-sm btn-primary global-search-btn" data-id="' + r.id + '">Ver ficha</button>' +
+      '</div>';
     }).join('');
 
     el.querySelectorAll('button[data-id]').forEach(function (b) {
@@ -575,6 +583,113 @@
         }
       }
     ]);
+  };
+
+  /* ---- Módulo de Exportación y Selector de Columnas ---- */
+  UI.initExportColumns = function () {
+    var container = document.getElementById('export-columns-container');
+    if (!container) return;
+
+    var customLabels = Ademincol.CUSTOM_LABELS || {};
+    var initialKeys = ['nombre', 'cedula', 'empresa', 'estado', 'cargo', 'area', 'ciudad', 'tipo_contrato'];
+    var remainingFields = FIELDS.filter(function (f) {
+      return initialKeys.indexOf(f.key) === -1;
+    });
+
+    var exportFields = [
+      { key: 'nombre', label: customLabels.nombre || 'Apellidos y Nombre' },
+      { key: 'cedula', label: customLabels.cedula || 'Cédula' },
+      { key: 'empresa', label: customLabels.empresa || 'Empresa' },
+      { key: 'estado', label: customLabels.estado || 'Estado del trabajador' },
+      { key: 'cargo', label: customLabels.cargo || 'Cargo' },
+      { key: 'area', label: customLabels.area || 'Área' },
+      { key: 'ciudad', label: customLabels.ciudad || 'Ciudad' },
+      { key: 'tipo_contrato', label: customLabels.tipo_contrato || 'Tipo de contrato' }
+    ];
+
+    remainingFields.forEach(function (f) {
+      exportFields.push({
+        key: f.key,
+        label: customLabels[f.key] || f.label
+      });
+    });
+
+    container.innerHTML = exportFields.map(function (f) {
+      return '<label class="col-checkbox-item" title="' + Utils.escapeHtml(f.label) + '">' +
+        '<input type="checkbox" value="' + f.key + '" checked>' +
+        '<span class="col-checkbox-label">' + Utils.escapeHtml(f.label) + '</span>' +
+      '</label>';
+    }).join('');
+
+    function updateColsCount() {
+      var allCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+      var checked = container.querySelectorAll('input[type="checkbox"]:checked');
+      var badge = document.getElementById('export-cols-count');
+      if (badge) {
+        badge.textContent = '(' + checked.length + ' de ' + allCheckboxes.length + ' seleccionadas)';
+      }
+    }
+
+    container.addEventListener('change', updateColsCount);
+
+    var btnAll = document.getElementById('btn-cols-all');
+    if (btnAll) {
+      btnAll.addEventListener('click', function () {
+        container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+          cb.checked = true;
+        });
+        updateColsCount();
+      });
+    }
+
+    var btnNone = document.getElementById('btn-cols-none');
+    if (btnNone) {
+      btnNone.addEventListener('click', function () {
+        container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+          cb.checked = false;
+        });
+        updateColsCount();
+      });
+    }
+
+    var btnBasic = document.getElementById('btn-cols-basic');
+    if (btnBasic) {
+      var basicKeys = ['nombre', 'cedula', 'empresa', 'estado', 'cargo', 'area', 'ciudad', 'tipo_contrato', 'telefono', 'correo_corporativo'];
+      btnBasic.addEventListener('click', function () {
+        container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+          cb.checked = basicKeys.indexOf(cb.value) !== -1;
+        });
+        updateColsCount();
+      });
+    }
+
+    updateColsCount();
+  };
+
+  UI.updateExportFilteredStatus = function () {
+    var statusEl = document.getElementById('export-filtered-status');
+    var descEl = document.getElementById('export-filtered-desc');
+    var rows = Store.getFiltered();
+    var total = Store.get().employees.length;
+
+    var activeFilters = [];
+    var state = Store.get();
+    if (state.search) activeFilters.push('Búsqueda: "' + state.search + '"');
+    FILTER_FIELDS.forEach(function (k) {
+      if (state.filters[k]) activeFilters.push(FILTER_LABELS[k] + ': ' + state.filters[k]);
+    });
+
+    if (descEl) {
+      if (activeFilters.length > 0) {
+        descEl.textContent = 'Filtros activos de Personal: ' + activeFilters.join(' · ');
+      } else {
+        descEl.textContent = 'Sin filtros activos en Personal: se exportará la totalidad de registros con las columnas seleccionadas.';
+      }
+    }
+
+    if (statusEl) {
+      statusEl.textContent = Utils.fmtInt(rows.length) + ' de ' + Utils.fmtInt(total) + ' registros coinciden para exportar.';
+    }
   };
 
   /* ---- Copias de Seguridad (Backup y Restore) ---- */
@@ -926,6 +1041,9 @@
     }
 
     // Exportar Excel
+    UI.initExportColumns();
+    UI.updateExportFilteredStatus();
+
     var btnExportAll = document.getElementById('btn-export-all');
     if (btnExportAll) {
       btnExportAll.addEventListener('click', function () {
@@ -936,9 +1054,19 @@
     var btnExportFiltered = document.getElementById('btn-export-filtered');
     if (btnExportFiltered) {
       btnExportFiltered.addEventListener('click', function () {
+        var checkedBoxes = document.querySelectorAll('#export-columns-container input[type="checkbox"]:checked');
+        var selectedKeys = Array.from(checkedBoxes).map(function (cb) { return cb.value; });
+        if (!selectedKeys.length) {
+          toast('Por favor selecciona al menos una columna para exportar.', 'error');
+          return;
+        }
         var rows = Store.getFiltered();
-        Exporter.exportToExcel(rows, 'ademincol_personal_filtrado_' + Date.now() + '.xlsx');
-        toast('Archivo exportado (' + rows.length + ' registros).', 'success');
+        if (!rows.length) {
+          toast('No hay registros que coincidan con los filtros actuales.', 'error');
+          return;
+        }
+        Exporter.exportToExcel(rows, 'ademincol_personal_filtrado_' + Date.now() + '.xlsx', selectedKeys);
+        toast('Archivo exportado (' + rows.length + ' registros, ' + selectedKeys.length + ' columnas).', 'success');
       });
     }
 
@@ -947,6 +1075,7 @@
       if (what === 'employees' || what === 'filters' || what === 'sort' || what === 'page') {
         if (what === 'employees' || what === 'filters') {
           UI.renderPersonalFilters();
+          UI.updateExportFilteredStatus();
         }
         UI.renderPersonalTable();
       }
