@@ -11,51 +11,70 @@
   var Exporter = {
     /**
      * Exporta registros a .xlsx con ExcelJS.
-     * Crea una Excel Table (ListObject) con filtros, estilos y filas alternas.
+     * Crea una Excel Table (ListObject) con filtros, estilos corporativos
+     * y columnas auto-ajustadas al contenido.
      */
     exportToExcel: function (records, filename) {
       var cols = ['id'].concat(FIELDS.map(function (f) { return f.key; }));
+      var colLabels = ['ITEM No.'].concat(FIELDS.map(function (f) { return f.label.toUpperCase(); }));
 
-      // Convertir registros a arrays de valores (no objetos)
+      // Convertir registros a arrays de valores
       var tableRows = records.map(function (r) {
-        return cols.map(function (c) { return r[c] === undefined ? '' : r[c]; });
+        return cols.map(function (c) { return r[c] === undefined ? '' : String(r[c]); });
       });
 
       var EJ = window.ExcelJS;
       var workbook = new EJ.Workbook();
       var ws = workbook.addWorksheet('Personal');
 
-      // Definir columnas con ancho razonable
-      ws.columns = cols.map(function (c) {
-        return { header: c, key: c, width: 20 };
+      // ------- Calcular ancho optimo por columna -------
+      var colWidths = colLabels.map(function (label, i) {
+        var maxLen = label.length;
+        tableRows.forEach(function (row) {
+          var val = row[i] || '';
+          if (val.length > maxLen) maxLen = val.length;
+        });
+        // Minimo 10, maximo 45, +2 de padding
+        return Math.min(45, Math.max(10, maxLen + 2));
       });
 
-      // Crear la tabla formal (ListObject) con los datos incluidos
+      // Definir columnas con ancho calculado
+      ws.columns = cols.map(function (c, i) {
+        return { header: colLabels[i], key: c, width: colWidths[i] };
+      });
+
+      // ------- Crear la tabla formal (ListObject) -------
       ws.addTable({
         name: 'EmployeesTable',
         ref: 'A1',
         headerRow: true,
         totalsRow: false,
         style: {
-          theme: 'TableStyleMedium9',
+          theme: null,
           showRowStripes: true,
           showFirstColumn: false,
           showLastColumn: false
         },
-        columns: cols.map(function (c) {
-          return { name: c, filterButton: true };
+        columns: colLabels.map(function (label) {
+          return { name: label, filterButton: true };
         }),
         rows: tableRows
       });
 
-      // Aplicar estilo al encabezado (negrita, fondo azul, texto blanco)
+      // ------- Estilo del encabezado (salmon/naranja) -------
       var headerRow = ws.getRow(1);
+      headerRow.height = 36;
       headerRow.eachCell({ includeEmpty: true }, function (cell) {
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.font = { bold: true, size: 11, color: { argb: 'FF000000' } };
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FF4F81BD' }
+          fgColor: { argb: 'FFF4B084' }
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle',
+          wrapText: true
         };
         cell.border = {
           top:    { style: 'thin', color: { argb: 'FF000000' } },
@@ -65,7 +84,27 @@
         };
       });
 
-      // Generar buffer y descargar
+      // ------- Estilos de filas de datos (alterno verde/rosa) -------
+      var greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+      var pinkFill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+      var thinBorder = {
+        top:    { style: 'thin', color: { argb: 'FF000000' } },
+        left:   { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        right:  { style: 'thin', color: { argb: 'FF000000' } }
+      };
+
+      for (var r = 2; r <= tableRows.length + 1; r++) {
+        var dataRow = ws.getRow(r);
+        var fill = (r % 2 === 0) ? greenFill : pinkFill;
+        dataRow.eachCell({ includeEmpty: true }, function (cell) {
+          cell.fill = fill;
+          cell.border = thinBorder;
+          cell.alignment = { vertical: 'middle', wrapText: false };
+        });
+      }
+
+      // ------- Generar buffer y descargar -------
       workbook.xlsx.writeBuffer()
         .then(function (buffer) {
           var blob = new Blob([buffer], {
