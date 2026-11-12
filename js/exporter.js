@@ -12,56 +12,66 @@
     exportToExcel: function (records, filename) {
       // Build column list (id + defined fields)
       var cols = ['id'].concat(FIELDS.map(function (f) { return f.key; }));
-      // Convert records to plain objects matching column order
-      var rows = records.map(function (r) {
+
+      // Prepare data rows (plain objects matching the column order)
+      var dataRows = records.map(function (r) {
         var o = {};
-        cols.forEach(function (c) {
-          o[c] = r[c] === undefined ? '' : r[c];
-        });
+        cols.forEach(function (c) { o[c] = r[c] === undefined ? '' : r[c]; });
         return o;
       });
 
-      // Create worksheet from JSON data
-      var ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+      // ------------------------------------------------------------
+      // Use ExcelJS (client‑side) to create a true Excel Table (ListObject)
+      // ------------------------------------------------------------
+      var ExcelJS = window.ExcelJS; // CDN provides global `ExcelJS`
+      var workbook = new ExcelJS.Workbook();
+      var ws = workbook.addWorksheet('Personal');
 
-      // Apply header styling (bold, gray background, borders)
-      var range = XLSX.utils.decode_range(ws['!ref']);
-      for (var C = range.s.c; C <= range.e.c; ++C) {
-        var cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
-        if (!ws[cellRef]) continue;
-        ws[cellRef].s = {
-          font: { bold: true, color: { rgb: "000000" } },
-          fill: { fgColor: { rgb: "D9D9D9" } },
-          border: {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } }
-          }
+      // Define columns with a reasonable width (20 characters)
+      ws.columns = cols.map(function (c) { return { header: c, key: c, width: 20 }; });
+
+      // Add data rows
+      ws.addRows(dataRows);
+
+      // Apply header styling (bold font, corporate background color, borders)
+      var headerRow = ws.getRow(1);
+      headerRow.eachCell({ includeEmpty: true }, function (cell) {
+        cell.font = { bold: true, color: { argb: 'FF000000' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F81BD' } }; // blue corporate
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } }
         };
-      }
+      });
 
-      // Apply alternating row colors (banded rows)
-      for (var R = range.s.r + 1; R <= range.e.r; ++R) {
-        var fillColor = (R % 2 === 0) ? "F2F9FF" : "FFFFFF";
-        for (var C = range.s.c; C <= range.e.c; ++C) {
-          var cellRef = XLSX.utils.encode_cell({ r: R, c: C });
-          if (!ws[cellRef]) continue;
-          ws[cellRef].s = ws[cellRef].s || {};
-          ws[cellRef].s.fill = { fgColor: { rgb: fillColor } };
-        }
-      }
+      // Add a formal Excel Table (ListObject) with filter buttons and banded rows
+      ws.addTable({
+        name: 'EmployeesTable',
+        ref: 'A1',
+        headerRow: true,
+        style: { theme: 'TableStyleMedium9', showRowStripes: true },
+        columns: cols.map(function (c) { return { name: c, filterButton: true }; })
+      });
 
-      // Enable autofilter so Excel shows filter dropdowns
-      ws['!autofilter'] = { ref: ws['!ref'] };
-
-      // Set column widths for readability
-      ws['!cols'] = cols.map(function () { return { wch: 20 }; });
-
-      // Build workbook and trigger download
-      var wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Personal');
-      XLSX.writeFile(wb, filename);
+      // Write the workbook to a Blob and trigger download
+      workbook.xlsx.writeBuffer().then(function (buffer) {
+        var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      }).catch(function (err) {
+        console.error('Error generating Excel file with ExcelJS:', err);
+        toast('No se pudo generar el archivo Excel: ' + (err && err.message ? err.message : err), 'error');
+      });
     },
 
     exportBackupJSON: function (employees, history, filename) {
