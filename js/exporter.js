@@ -1,4 +1,5 @@
-/* =================================================================
+/* Updated export logic with ExcelJS Table and FileSaver */
+
    Ademincol RRHH — Exportador de Datos (Excel y Backup JSON)
    ================================================================= */
 (function (window) {
