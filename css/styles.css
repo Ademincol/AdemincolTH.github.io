@@ -1092,29 +1092,300 @@ td.cell-actions {
   color: var(--ink);
 }
 
-/* ---- Catalogs ---- */
-.catalog-card {
+/* ---- Catalogs & System Configuration ---- */
+.config-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.config-section-title h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  margin-bottom: 16px;
+}
+
+.config-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+}
+
+.config-stat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.config-stat-info {
   display: flex;
   flex-direction: column;
+}
+
+.config-stat-val {
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--ink);
+}
+
+.config-stat-lbl {
+  font-size: .75rem;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.catalogs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.catalog-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+}
+
+.catalog-card:hover {
+  border-color: var(--accent);
+}
+
+.catalog-card-header {
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.catalog-card-header-title {
+  display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.catalog-card-icon {
+  font-size: 1.15rem;
+}
+
+.catalog-card-header h3 {
+  font-size: .95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.catalog-count-badge {
+  font-size: .74rem;
+  font-family: "IBM Plex Mono", monospace;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.catalog-search-wrap {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.catalog-search-input {
+  width: 100%;
+  padding: 5px 9px;
+  font-size: .8rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink);
+  transition: border-color .12s, background .12s;
+}
+
+.catalog-search-input:focus {
+  background: var(--surface);
+  border-color: var(--focus);
+  outline: none;
+}
+
+.catalog-values-list {
+  padding: 8px 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .catalog-value-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--border);
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background .12s;
 }
 
-.catalog-value-row:last-child {
-  border-bottom: none;
+.catalog-value-row:hover {
+  background: var(--surface-2);
 }
 
-.catalog-value-row .cnt {
+.catalog-value-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.catalog-cnt-badge {
+  font-size: .74rem;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  min-width: 26px;
+  text-align: center;
+}
+
+.catalog-value-text {
+  font-size: .84rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-catalog-rename {
+  padding: 3px 8px;
+  font-size: .75rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: var(--ink-muted);
-  font-size: .78rem;
-  min-width: 70px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all .12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-catalog-rename:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+  background: #edf5fd;
+}
+
+:root[data-theme="dark"] .btn-catalog-rename:hover {
+  background: rgba(66, 133, 244, 0.15);
+  border-color: rgba(66, 133, 244, 0.5);
+  color: #8ab4f8;
+}
+
+.catalog-empty-notice {
+  padding: 20px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: .82rem;
+  font-style: italic;
+}
+
+.catalog-card-footer {
+  padding: 8px 14px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  font-size: .76rem;
+  color: var(--ink-muted);
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Tarjetas de Respaldo y Mantenimiento */
+.config-utility-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.utility-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.utility-card.danger {
+  border-color: rgba(156, 74, 46, 0.35);
+  background: linear-gradient(to bottom, var(--surface), var(--bad-bg));
+}
+
+:root[data-theme="dark"] .utility-card.danger {
+  background: linear-gradient(to bottom, var(--surface), rgba(156, 74, 46, 0.15));
+}
+
+.utility-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.utility-card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.utility-card-title {
+  font-size: .98rem;
+  font-weight: 600;
+  margin: 0 0 4px 0;
 }
 
 /* ---- Toasts ---- */
