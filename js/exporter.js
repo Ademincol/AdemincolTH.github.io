@@ -38,9 +38,8 @@
   var Exporter = {
     /**
      * Exporta registros a .xlsx con ExcelJS.
-     * Crea una Excel Table formal (ListObject) con filtros automáticos,
-     * cabeceras temáticas multicolores, pastillas de estado (ACTIVO / RETIRADO),
-     * y columnas auto-adaptadas al contenido.
+     * Crea una hoja con autofiltros, cabeceras temáticas multicolores,
+     * pastillas de estado (ACTIVO / RETIRADO), bordes negros y cebreado blanco / gris claro.
      */
     exportToExcel: function (records, filename) {
       // 1. Definir columnas en el orden exacto de la plantilla
@@ -114,48 +113,35 @@
         return { header: col.label, key: col.key, width: colWidths[i] };
       });
 
-      // 5. Agregar la Tabla formal (ListObject)
-      ws.addTable({
-        name: 'PersonalAdemincol',
-        ref: 'A1',
-        headerRow: true,
-        totalsRow: false,
-        style: {
-          theme: null,
-          showRowStripes: false
-        },
-        columns: orderedCols.map(function (col) {
-          return { name: col.label, filterButton: true };
-        }),
-        rows: tableRows
+      // 5. Agregar filas de datos directamente
+      tableRows.forEach(function (rowData) {
+        ws.addRow(rowData);
       });
 
-      // Bordes estándar para toda la cuadrícula
+      // Habilitar autofiltro nativo en todo el rango sin corromper el XML
+      var totalCols = orderedCols.length;
+      var totalRows = tableRows.length + 1; // Fila 1 es header
+      ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: totalRows, column: totalCols }
+      };
+
+      // Bordes negros finos para todas las celdas
+      var borderBlackThin = {
+        top:    { style: 'thin', color: { argb: 'FF000000' } },
+        left:   { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        right:  { style: 'thin', color: { argb: 'FF000000' } }
+      };
+
       var borderHeader = {
-          top:    { style: 'thin', color: { argb: 'FF000000' } },
-          left:   { style: 'thin', color: { argb: 'FF000000' } },
-          bottom: { style: 'medium', color: { argb: 'FF000000' } },
-          right:  { style: 'thin', color: { argb: 'FF000000' } }
-        };
-        top:    { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        left:   { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        bottom: { style: 'medium', color: { argb: 'FF333333' } },
-        right:  { style: 'thin', color: { argb: 'FFFFFFFF' } }
+        top:    { style: 'thin', color: { argb: 'FF000000' } },
+        left:   { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'medium', color: { argb: 'FF000000' } },
+        right:  { style: 'thin', color: { argb: 'FF000000' } }
       };
 
-      var borderCell = {
-          top:    { style: 'thin', color: { argb: 'FF000000' } },
-          left:   { style: 'thin', color: { argb: 'FF000000' } },
-          bottom: { style: 'thin', color: { argb: 'FF000000' } },
-          right:  { style: 'thin', color: { argb: 'FF000000' } }
-        }
-        top:    { style: 'thin', color: { argb: 'FFD0D3D4' } },
-        left:   { style: 'thin', color: { argb: 'FFD0D3D4' } },
-        bottom: { style: 'thin', color: { argb: 'FFD0D3D4' } },
-        right:  { style: 'thin', color: { argb: 'FFD0D3D4' } }
-      };
-
-      // 6. Estilizar encabezados (Fila 1) con los colores exactos
+      // 6. Estilizar encabezados (Fila 1) con los colores exactos y borde negro
       var headerRow = ws.getRow(1);
       headerRow.height = 42;
       headerRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
@@ -176,41 +162,33 @@
         cell.border = borderHeader;
       });
 
-      // 7. Estilizar filas de datos (Fila 2 en adelante)
-      var totalRows = tableRows.length;
-      for (var r = 2; r <= totalRows + 1; r++) {
+      // 7. Estilizar filas de datos (Fila 2 en adelante): bordes negros y cebreado blanco / gris claro
+      for (var r = 2; r <= totalRows; r++) {
         var dataRow = ws.getRow(r);
         dataRow.height = 24;
 
+        // Cebreado: filas pares blanco, filas impares gris claro (o viceversa)
+        var rowBgColor = (r % 2 === 0) ? 'FFFFFFFF' : 'FFF2F2F2';
+
         dataRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
           var colDef = orderedCols[colNumber - 1];
-          var rawVal = cell.value ? String(cell.value) : '';
+          var rawVal = cell.value !== undefined && cell.value !== null ? String(cell.value) : '';
 
-          // Estilo base de celda
-                    // Estilo base de celda
-          cell.border = borderCell;
+          // Bordes negros en cada celda
+          cell.border = borderBlackThin;
+
+          // Tipografía y alineación
           cell.font = { size: 10, color: { argb: 'FF2C3E50' } };
           cell.alignment = {
             vertical: 'middle',
             horizontal: (colDef && colDef.align) ? colDef.align : 'center'
           };
-          // Alternar colores de fondo blanco / gris claro según la fila
-          var bgColor = (r % 2 === 0) ? 'FFFFFFFF' : 'FFF2F2F2';
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: bgColor }
-          };
 
-          cell.font = { size: 10, color: { argb: 'FF2C3E50' } };
-          cell.alignment = {
-            vertical: 'middle',
-            horizontal: (colDef && colDef.align) ? colDef.align : 'center'
-          };
+          // Relleno por defecto según cebreado
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' }
+            fgColor: { argb: rowBgColor }
           };
 
           // Formato especial para Columna ITEM No.
