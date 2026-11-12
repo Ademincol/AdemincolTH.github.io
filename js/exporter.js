@@ -1,5 +1,4 @@
-/* Updated export logic with ExcelJS Table and FileSaver */
-
+/* =================================================================
    Ademincol RRHH — Exportador de Datos (Excel y Backup JSON)
    ================================================================= */
 (function (window) {
@@ -10,44 +9,42 @@
   var Utils = C.Utils;
 
   var Exporter = {
+    /**
+     * Exporta registros a .xlsx con ExcelJS.
+     * Crea una Excel Table (ListObject) con filtros y filas alternas.
+     * Descarga mediante FileSaver o fallback con <a>.
+     */
     exportToExcel: function (records, filename) {
-      // Build column list (id + defined fields)
       var cols = ['id'].concat(FIELDS.map(function (f) { return f.key; }));
 
-      // Prepare data rows (plain objects matching the column order)
       var dataRows = records.map(function (r) {
         var o = {};
         cols.forEach(function (c) { o[c] = r[c] === undefined ? '' : r[c]; });
         return o;
       });
 
-      // ------------------------------------------------------------
-      // Use ExcelJS (client‑side) to create a true Excel Table (ListObject)
-      // ------------------------------------------------------------
-      var ExcelJS = window.ExcelJS; // CDN provides global `ExcelJS`
-      var workbook = new ExcelJS.Workbook();
+      var EJ = window.ExcelJS;
+      var workbook = new EJ.Workbook();
       var ws = workbook.addWorksheet('Personal');
 
-      // Define columns with a reasonable width (20 characters)
-      ws.columns = cols.map(function (c) { return { header: c, key: c, width: 20 }; });
+      ws.columns = cols.map(function (c) {
+        return { header: c, key: c, width: 20 };
+      });
 
-      // Add data rows
       ws.addRows(dataRows);
 
-      // Apply header styling (bold font, corporate background color, borders)
       var headerRow = ws.getRow(1);
       headerRow.eachCell({ includeEmpty: true }, function (cell) {
-        cell.font = { bold: true, color: { argb: 'FF000000' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F81BD' } }; // blue corporate
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F81BD' } };
         cell.border = {
-          top: { style: 'thin', color: { argb: 'FF000000' } },
-          left: { style: 'thin', color: { argb: 'FF000000' } },
+          top:    { style: 'thin', color: { argb: 'FF000000' } },
+          left:   { style: 'thin', color: { argb: 'FF000000' } },
           bottom: { style: 'thin', color: { argb: 'FF000000' } },
-          right: { style: 'thin', color: { argb: 'FF000000' } }
+          right:  { style: 'thin', color: { argb: 'FF000000' } }
         };
       });
 
-      // Add a formal Excel Table (ListObject) with filter buttons and banded rows
       ws.addTable({
         name: 'EmployeesTable',
         ref: 'A1',
@@ -56,28 +53,29 @@
         columns: cols.map(function (c) { return { name: c, filterButton: true }; })
       });
 
-      // Write the workbook to a Blob and trigger download using FileSaver.js
-      workbook.xlsx.writeBuffer().then(function (buffer) {
-        var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        // Use FileSaver.saveAs if available, otherwise fallback to anchor
-        if (window.saveAs) {
-          window.saveAs(blob, filename);
-        } else {
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(function () {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }, 100);
-        }
-      }).catch(function (err) {
-        console.error('Error generating Excel file with ExcelJS:', err);
-        toast('No se pudo generar el archivo Excel: ' + (err && err.message ? err.message : err), 'error');
-      });
+      workbook.xlsx.writeBuffer()
+        .then(function (buffer) {
+          var blob = new Blob([buffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          });
+          if (window.saveAs) {
+            window.saveAs(blob, filename);
+          } else {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () {
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }, 100);
+          }
+        })
+        .catch(function (err) {
+          console.error('Error generating Excel:', err);
+        });
     },
 
     exportBackupJSON: function (employees, history, filename) {
@@ -90,7 +88,6 @@
         employees: employees,
         history: history
       };
-
       var jsonStr = JSON.stringify(backupData, null, 2);
       var blob = new Blob([jsonStr], { type: 'application/json' });
       var url = URL.createObjectURL(blob);
@@ -112,7 +109,7 @@
           try {
             var data = JSON.parse(e.target.result);
             if (!data || !Array.isArray(data.employees)) {
-              return reject(new Error('El archivo no tiene un formato válido de copia de seguridad (falta lista de empleados).'));
+              return reject(new Error('El archivo no tiene un formato valido de copia de seguridad.'));
             }
             resolve({
               employees: data.employees,
@@ -122,7 +119,7 @@
             reject(new Error('Error al interpretar el archivo JSON: ' + err.message));
           }
         };
-        reader.onerror = function (e) {
+        reader.onerror = function () {
           reject(new Error('No se pudo leer el archivo seleccionado.'));
         };
         reader.readAsText(file);
@@ -134,4 +131,3 @@
   window.Ademincol.Exporter = Exporter;
 
 })(window);
-
